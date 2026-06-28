@@ -7,7 +7,6 @@ export type ViewMode =
 export type DialogType =
   | "rename-workspace"
   | "move-tabs"
-  | "group-tabs"
   | "color-picker"
   | "emoji-picker"
   | null;

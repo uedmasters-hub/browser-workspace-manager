@@ -2,6 +2,7 @@ import type { MouseEvent } from "react";
 
 import {
   MoreVertical,
+  Star,
 } from "lucide-react";
 
 import RenameInput from "./RenameInput";
@@ -15,6 +16,8 @@ type Props = {
 
   saving: boolean;
 
+  isFavorite: boolean;
+
   isMenuOpen: boolean;
 
   onTitleChange: (
@@ -27,6 +30,10 @@ type Props = {
 
   onStartRename: () => void;
 
+  onFavorite: (
+    e: MouseEvent<HTMLButtonElement>
+  ) => void | Promise<void>;
+
   onMenu: (
     e: MouseEvent<HTMLButtonElement>
   ) => void;
@@ -37,11 +44,13 @@ export default function WindowCardHeader({
   emoji,
   renaming,
   saving,
+  isFavorite,
   isMenuOpen,
   onTitleChange,
   onRenameSave,
   onRenameCancel,
   onStartRename,
+  onFavorite,
   onMenu,
 }: Props) {
   return (
@@ -77,6 +86,22 @@ export default function WindowCardHeader({
       </div>
 
       <div className="ml-3 flex items-center gap-1">
+        <button
+          type="button"
+          onClick={onFavorite}
+          className="rounded-lg p-1 transition hover:bg-black/5"
+        >
+          <Star
+            size={18}
+            strokeWidth={2.2}
+            fill={
+              isFavorite
+                ? "currentColor"
+                : "none"
+            }
+          />
+        </button>
+
         <button
           type="button"
           onClick={onMenu}

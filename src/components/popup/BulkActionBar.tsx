@@ -1,11 +1,9 @@
 import { useState } from "react";
 import {
   Copy,
-  FolderPlus,
   Move,
   Pin,
   Trash2,
-  Ungroup,
 } from "lucide-react";
 
 import { useTabStore } from "../../stores/tabStore";
@@ -36,10 +34,6 @@ export default function BulkActionBar() {
     (state) => state.closeSelectedTabs
   );
 
-  const ungroupSelectedTabs = useTabStore(
-    (state) => state.ungroupSelectedTabs
-  );
-
   const openDialog = useUIStore(
     (state) => state.openDialog
   );
@@ -53,10 +47,6 @@ export default function BulkActionBar() {
       tabs.find((tab) => tab.id === id)
         ?.pinned
     );
-  const hasGroupedTabs = selectedTabs.some(
-    (id) =>
-      tabs.find((tab) => tab.id === id)?.groupId !== -1
-  );
 
   if (
     !selectionMode ||
@@ -92,15 +82,6 @@ export default function BulkActionBar() {
     }
   }
 
-  async function handleUngroup() {
-    try {
-      setLoading(true);
-      await ungroupSelectedTabs();
-    } finally {
-      setLoading(false);
-    }
-  }
-
   return (
     <div className="fixed bottom-4 left-4 right-4 z-50">
       <div className="rounded-2xl border border-neutral-200 bg-white shadow-xl backdrop-blur">
@@ -108,7 +89,7 @@ export default function BulkActionBar() {
           {selectedTabs.length} Selected
         </div>
 
-        <div className="flex items-center gap-1 overflow-x-auto px-2 py-2">
+        <div className="flex items-center justify-around px-2 py-2">
           <ActionButton
             icon={<Move size={18} />}
             label="Move"
@@ -117,22 +98,6 @@ export default function BulkActionBar() {
               openDialog("move-tabs")
             }
           />
-
-          <ActionButton
-            icon={<FolderPlus size={18} />}
-            label="Group"
-            disabled={loading}
-            onClick={() => openDialog("group-tabs")}
-          />
-
-          {hasGroupedTabs && (
-            <ActionButton
-              icon={<Ungroup size={18} />}
-              label="Ungroup"
-              disabled={loading}
-              onClick={handleUngroup}
-            />
-          )}
 
           <ActionButton
             icon={
@@ -205,7 +170,7 @@ function ActionButton({
       onClick={onClick}
       disabled={disabled}
       className={[
-        "flex min-w-[58px] flex-1 flex-col items-center gap-1 rounded-xl px-2 py-2 transition-all",
+        "flex min-w-[64px] flex-col items-center gap-1 rounded-xl px-3 py-2 transition-all",
         disabled
           ? "cursor-not-allowed opacity-50"
           : "",

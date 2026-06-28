@@ -1,23 +1,24 @@
 import { useEffect, useRef } from "react";
-import type {
-  KeyboardEvent as ReactKeyboardEvent,
-} from "react";
+import type { KeyboardEvent } from "react";
 import { Menu, Search, X } from "lucide-react";
 
 import { useSearchStore } from "../../stores/searchStore";
-import {
-  FOCUS_SEARCH_REQUEST_KEY,
-  isFocusSearchMessage,
-} from "../../browser/commands";
+
+function isTypingTarget(el: EventTarget | null): boolean {
+  if (!(el instanceof HTMLElement)) {
+    return false;
+  }
+
+  const tag = el.tagName;
+
+  return (
+    tag === "INPUT" ||
+    tag === "TEXTAREA" ||
+    el.isContentEditable
+  );
+}
 
 export default function Header() {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const searchShortcut =
-    typeof navigator !== "undefined" &&
-    /Mac|iPhone|iPad/.test(navigator.userAgent)
-      ? "⇧⌘K"
-      : "Ctrl ⇧ K";
-
   const query = useSearchStore((state) => state.query);
   const setQuery = useSearchStore((state) => state.setQuery);
   const search = useSearchStore((state) => state.search);
@@ -29,66 +30,7 @@ export default function Header() {
   const moveActive = useSearchStore((state) => state.moveActive);
   const runActive = useSearchStore((state) => state.runActive);
 
-  useEffect(() => {
-    function focusSearchInput() {
-      inputRef.current?.focus({
-        preventScroll: true,
-      });
-      inputRef.current?.select();
-    }
-
-    function focusSearch(event: globalThis.KeyboardEvent) {
-      const target = event.target;
-      const isTyping =
-        target instanceof HTMLElement &&
-        (target.isContentEditable ||
-          ["INPUT", "TEXTAREA", "SELECT"].includes(
-            target.tagName
-          ));
-      const commandK =
-        event.key.toLowerCase() === "k" &&
-        (event.metaKey || event.ctrlKey);
-      const slash = event.key === "/" && !isTyping;
-
-      if (!commandK && !slash) {
-        return;
-      }
-
-      event.preventDefault();
-      focusSearchInput();
-    }
-
-    function handleCommand(message: unknown) {
-      if (isFocusSearchMessage(message)) {
-        focusSearchInput();
-      }
-    }
-
-    async function focusPendingSearch() {
-      const result = await chrome.storage.session.get(
-        FOCUS_SEARCH_REQUEST_KEY
-      );
-
-      if (!result[FOCUS_SEARCH_REQUEST_KEY]) {
-        return;
-      }
-
-      await chrome.storage.session.remove(
-        FOCUS_SEARCH_REQUEST_KEY
-      );
-
-      focusSearchInput();
-    }
-
-    window.addEventListener("keydown", focusSearch);
-    chrome.runtime.onMessage.addListener(handleCommand);
-    void focusPendingSearch();
-
-    return () => {
-      window.removeEventListener("keydown", focusSearch);
-      chrome.runtime.onMessage.removeListener(handleCommand);
-    };
-  }, []);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Debounced engine call. Typing searches; an empty box (while focused)
   // shows discovery.
@@ -104,9 +46,29 @@ export default function Header() {
     return () => clearTimeout(timer);
   }, [query, focused, search, discover]);
 
-  function handleKeyDown(
-    event: ReactKeyboardEvent<HTMLInputElement>
-  ) {
+  // Focus-search hotkeys: "/" (when not already typing) and Cmd/Ctrl+F.
+  useEffect(() => {
+    function onKey(event: globalThis.KeyboardEvent) {
+      const slash =
+        event.key === "/" && !isTypingTarget(event.target);
+
+      const findCombo =
+        (event.metaKey || event.ctrlKey) &&
+        event.key.toLowerCase() === "f";
+
+      if (slash || findCombo) {
+        event.preventDefault();
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      }
+    }
+
+    window.addEventListener("keydown", onKey);
+
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     switch (event.key) {
       case "ArrowDown":
         event.preventDefault();
@@ -132,7 +94,7 @@ export default function Header() {
   }
 
   return (
-    <header className="z-10 shrink-0 bg-white">
+    <header className="sticky top-0 z-10 bg-white">
       <div className="flex items-center gap-3 p-5">
         <div
           className={[
@@ -152,13 +114,8 @@ export default function Header() {
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             onFocus={() => setFocused(true)}
-            // Delay so a click on a result row still registers before the
-            // overlay is torn down.
-            onBlur={() =>
-              setTimeout(() => setFocused(false), 150)
-            }
+            onBlur={() => setTimeout(() => setFocused(false), 150)}
             placeholder="Search tabs and workspaces..."
-            aria-keyshortcuts="Meta+Shift+K Control+Shift+K Meta+K Control+K /"
             className="w-full bg-transparent text-sm outline-none placeholder:text-gray-400"
           />
 
@@ -171,11 +128,11 @@ export default function Header() {
             >
               <X size={16} />
             </button>
-          ) : !focused ? (
-            <kbd className="ml-2 shrink-0 rounded-md border border-neutral-200 bg-neutral-50 px-1.5 py-0.5 font-sans text-[10px] font-medium text-neutral-400">
-              {searchShortcut}
+          ) : (
+            <kbd className="ml-2 hidden shrink-0 rounded border border-neutral-200 bg-neutral-50 px-1.5 text-[11px] font-medium text-neutral-400 sm:block">
+              /
             </kbd>
-          ) : null}
+          )}
         </div>
 
         <button className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl hover:bg-gray-100">

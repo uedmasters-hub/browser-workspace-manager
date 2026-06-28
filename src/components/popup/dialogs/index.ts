@@ -6,6 +6,5 @@ export { default as DialogList } from "./DialogList";
 export { default as DialogSearch } from "./DialogSearch";
 
 export { default as MoveTabsDialog } from "./MoveTabsDialog";
-export { default as GroupTabsDialog } from "./GroupTabsDialog";
 export { default as ColorPickerDialog } from "./ColorPickerDialog";
 export { default as EmojiPickerDialog } from "./EmojiPickerDialog";

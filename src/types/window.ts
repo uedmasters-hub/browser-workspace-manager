@@ -13,6 +13,8 @@ export interface WorkspaceWindow {
 
   isActive: boolean;
 
+  isFavorite: boolean;
+
   isArchived: boolean;
 
   createdAt: string;

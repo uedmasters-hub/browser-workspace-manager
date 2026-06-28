@@ -12,7 +12,11 @@ export default defineManifest({
   permissions: [
     "tabs",
     "tabGroups",
-    "storage"
+    "storage",
+    "bookmarks",
+    "history",
+    "downloads",
+    "sessions"
   ],
 
   host_permissions: [
@@ -24,12 +28,12 @@ export default defineManifest({
   },
 
   commands: {
-    "focus-search": {
+    _execute_action: {
       suggested_key: {
-        default: "Ctrl+Shift+K",
-        mac: "Command+Shift+K"
+        default: "Ctrl+Shift+Space",
+        mac: "Command+Shift+Space"
       },
-      description: "Open the extension and focus search"
+      description: "Open Browser Workspace Manager"
     }
   },
 

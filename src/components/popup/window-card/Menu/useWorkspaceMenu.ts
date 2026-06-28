@@ -4,6 +4,7 @@ type Props = {
   window: WorkspaceWindow;
 
   onRename: () => void;
+  onFavorite: () => void;
   onColor: () => void;
   onEmoji: () => void;
   onArchive: () => void;
@@ -15,6 +16,7 @@ type Props = {
 export default function useWorkspaceMenu({
   window,
   onRename,
+  onFavorite,
   onColor,
   onEmoji,
   onArchive,
@@ -23,6 +25,11 @@ export default function useWorkspaceMenu({
 }: Props) {
   function handleRename() {
     onRename();
+    onClose();
+  }
+
+  function handleFavorite() {
+    onFavorite();
     onClose();
   }
 
@@ -49,7 +56,11 @@ export default function useWorkspaceMenu({
   return {
     workspaceName: window.name,
 
+    isFavorite: window.isFavorite,
+
     handleRename,
+
+    handleFavorite,
 
     handleColor,
 

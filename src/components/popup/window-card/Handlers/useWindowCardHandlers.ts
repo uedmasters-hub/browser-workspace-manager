@@ -23,6 +23,11 @@ export default function useWindowCardHandlers({
     (state) => state.focusWindow
   );
 
+  const toggleFavorite =
+    useWindowStore(
+      (state) => state.toggleFavorite
+    );
+
   const archiveWorkspace =
     useWindowStore(
       (state) => state.archiveWorkspace
@@ -84,6 +89,20 @@ export default function useWindowCardHandlers({
     );
   }
 
+  async function handleFavorite(
+    e?: MouseEvent<HTMLButtonElement>
+  ) {
+    e?.stopPropagation();
+
+    if (!chromeWindowId) {
+      return;
+    }
+
+    await toggleFavorite(
+      chromeWindowId
+    );
+  }
+
   async function handleArchive() {
     if (!chromeWindowId) {
       return;
@@ -133,6 +152,8 @@ export default function useWindowCardHandlers({
     handleSelect,
 
     handleFocus,
+
+    handleFavorite,
 
     handleArchive,
 

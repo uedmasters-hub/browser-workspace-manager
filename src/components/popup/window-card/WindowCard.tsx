@@ -90,11 +90,13 @@ export default function WindowCard({
           emoji={window.emoji}
           renaming={rename.editing}
           saving={rename.saving}
+          isFavorite={window.isFavorite}
           isMenuOpen={handlers.isMenuOpen}
           onTitleChange={rename.setValue}
           onRenameSave={rename.save}
           onRenameCancel={rename.cancel}
           onStartRename={rename.start}
+          onFavorite={handlers.handleFavorite}
           onMenu={handlers.handleMenu}
         />
 
@@ -121,8 +123,14 @@ export default function WindowCard({
         workspaceName={
           window.name
         }
+        isFavorite={
+          window.isFavorite
+        }
         onRename={
           rename.start
+        }
+        onFavorite={() =>
+          handlers.handleFavorite()
         }
         onArchive={
           handlers.handleArchive

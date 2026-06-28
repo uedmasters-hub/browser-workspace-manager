@@ -3,6 +3,7 @@ import {
   Palette,
   Pencil,
   Smile,
+  Star,
   Trash2,
 } from "lucide-react";
 
@@ -17,8 +18,10 @@ type Props = {
   chromeWindowId: number;
 
   workspaceName: string;
+  isFavorite: boolean;
 
   onRename: () => void;
+  onFavorite: () => void;
   onArchive: () => void;
   onDelete: () => void;
 };
@@ -28,7 +31,9 @@ export default function WorkspaceMenu({
   onClose,
   chromeWindowId,
   workspaceName,
+  isFavorite,
   onRename,
+  onFavorite,
   onArchive,
   onDelete,
 }: Props) {
@@ -61,6 +66,19 @@ export default function WorkspaceMenu({
         onClick={() => {
           onClose();
           onRename();
+        }}
+      />
+
+      <MenuItem
+        icon={<Star size={16} />}
+        label={
+          isFavorite
+            ? "Remove Favorite"
+            : "Add to Favorites"
+        }
+        onClick={() => {
+          onClose();
+          onFavorite();
         }}
       />
 

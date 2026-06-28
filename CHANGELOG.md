@@ -1,5 +1,38 @@
 # Changelog
 
+## v0.5 — Universal Search (Level 2) + tab favorites + focus hotkey
+
+### Added
+
+- Level-2 Universal Search providers, all on the existing pipeline:
+  Bookmarks, History, Downloads, Recently closed (Sessions), and Archived
+  workspaces. Each ships real actions (open, reopen, open file / show in folder,
+  focus window).
+- Grouped results: a fixed, scannable section order (Workspaces → Tabs →
+  Bookmarks → History → Downloads → Recently closed → Archived) with per-source
+  caps; keyboard nav flows across the whole list and Enter runs the highest-
+  scored match.
+- Cross-source de-duplication by URL (same page as a tab + bookmark + history
+  collapses to one best-scored row).
+- Per-provider timeouts so a slow source can't stall results; Level-2 providers
+  are lazy (skipped until the query is ≥ 2 chars) to keep instant search snappy.
+- Tab favorites: star a tab (persisted by URL) to pin it to the top of the list
+  and boost it in search. Includes `favoriteTabsRepository` + store action.
+- Focus-search hotkeys: "/" (when not typing) and Cmd/Ctrl+F focus the search
+  box; added a global `_execute_action` command (Ctrl/Cmd+Shift+Space) to open
+  the popup.
+- History ranking adds a frequency boost (visit count).
+
+### Fixed
+
+- Removed `public/manifest.json`, a stale stub that was overwriting the manifest
+  generated from `manifest.ts` in the build — this is why added permissions
+  never took effect. `manifest.ts` now adds bookmarks/history/downloads/sessions.
+
+### Chrome permissions
+
+- Added: `bookmarks`, `history`, `downloads`, `sessions`.
+
 ## v0.4 — Click to switch
 
 ### Added

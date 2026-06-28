@@ -1,18 +1,6 @@
 import { create } from "zustand";
 
 import { getTabs } from "../browser/services/tabService";
-import {
-  addTabsToGroup,
-  buildGroupTitle,
-  createTabGroup,
-  getTabGroups,
-  moveTabGroup,
-  moveTabBefore as moveChromeTabBefore,
-  reorderTabs,
-  splitGroupTitle,
-  ungroupTabs,
-  updateTabGroup,
-} from "../browser/services/tabGroupService";
 
 import {
   closeTabs,
@@ -22,22 +10,21 @@ import {
   activateTab as activateChromeTab,
 } from "../browser/services/tabActionService";
 
+import {
+  getFavoriteTabUrls,
+  toggleFavoriteTab,
+} from "../browser/storage/favoriteTabsRepository";
+
 import { useWindowStore } from "./windowStore";
 
-import { setTabFavorite } from "../browser/storage/tabFavoriteRepository";
-
-import type {
-  TabGroupColor,
-  WorkspaceTab,
-  WorkspaceTabGroup,
-} from "../types/tab";
+import type { WorkspaceTab } from "../types/tab";
 
 interface TabState {
   tabs: WorkspaceTab[];
 
-  groups: WorkspaceTabGroup[];
-
   currentWindowId?: number;
+
+  favoriteUrls: string[];
 
   selectionMode: boolean;
 
@@ -56,7 +43,8 @@ interface TabActions {
     tabId: number
   ) => Promise<void>;
 
-  toggleFavorite: (
+  /** Star/unstar a tab for quick navigation (persisted by URL). */
+  toggleTabFavorite: (
     tabId: number
   ) => Promise<void>;
 
@@ -79,68 +67,21 @@ interface TabActions {
   moveSelectedTabs: (
     targetWindowId: number
   ) => Promise<void>;
-
-  groupSelectedTabs: (
-    groupId?: number
-  ) => Promise<void>;
-
-  ungroupSelectedTabs: () => Promise<void>;
-
-  toggleGroupCollapsed: (
-    groupId: number
-  ) => Promise<void>;
-
-  renameGroup: (
-    groupId: number,
-    name: string
-  ) => Promise<void>;
-
-  updateGroupColor: (
-    groupId: number,
-    color: TabGroupColor
-  ) => Promise<void>;
-
-  updateGroupEmoji: (
-    groupId: number,
-    emoji?: string
-  ) => Promise<void>;
-
-  ungroupGroup: (
-    groupId: number
-  ) => Promise<void>;
-
-  moveGroup: (
-    groupId: number,
-    direction: "left" | "right"
-  ) => Promise<void>;
-
-  shuffleGroupTabs: (
-    groupId: number
-  ) => Promise<void>;
-
-  moveTabBefore: (
-    tabId: number,
-    targetTabId: number
-  ) => Promise<void>;
-
-  moveTabToGroup: (
-    tabId: number,
-    groupId?: number
-  ) => Promise<void>;
-
-  moveGroupBefore: (
-    groupId: number,
-    targetGroupId: number
-  ) => Promise<void>;
 }
 
 type TabStore = TabState & TabActions;
 
-async function getTabSnapshot(windowId: number) {
-  const tabs = await getTabs(windowId);
-  const groups = await getTabGroups(windowId, tabs);
+/** Mark which tabs are favorites based on the saved URL list. */
+function annotate(
+  tabs: WorkspaceTab[],
+  favoriteUrls: string[]
+): WorkspaceTab[] {
+  const set = new Set(favoriteUrls);
 
-  return { tabs, groups };
+  return tabs.map((tab) => ({
+    ...tab,
+    favorite: set.has(tab.url),
+  }));
 }
 
 /**
@@ -154,8 +95,8 @@ async function syncAfterMutation(
   const windowId = get().currentWindowId;
 
   if (windowId !== undefined) {
-    const snapshot = await getTabSnapshot(windowId);
-    set(snapshot);
+    const tabs = await getTabs(windowId);
+    set({ tabs: annotate(tabs, get().favoriteUrls) });
   }
 
   await useWindowStore.getState().refreshWindows();
@@ -164,19 +105,23 @@ async function syncAfterMutation(
 export const useTabStore = create<TabStore>((set, get) => ({
   tabs: [],
 
-  groups: [],
-
   currentWindowId: undefined,
+
+  favoriteUrls: [],
 
   selectionMode: false,
 
   selectedTabs: [],
 
   loadTabs: async (chromeWindowId) => {
-    const snapshot = await getTabSnapshot(chromeWindowId);
+    const [tabs, favoriteUrls] = await Promise.all([
+      getTabs(chromeWindowId),
+      getFavoriteTabUrls(),
+    ]);
 
     set({
-      ...snapshot,
+      tabs: annotate(tabs, favoriteUrls),
+      favoriteUrls,
       currentWindowId: chromeWindowId,
       selectedTabs: [],
     });
@@ -189,9 +134,9 @@ export const useTabStore = create<TabStore>((set, get) => ({
       return;
     }
 
-    const snapshot = await getTabSnapshot(windowId);
+    const tabs = await getTabs(windowId);
 
-    set(snapshot);
+    set({ tabs: annotate(tabs, get().favoriteUrls) });
   },
 
   activateTab: async (tabId) => {
@@ -215,42 +160,19 @@ export const useTabStore = create<TabStore>((set, get) => ({
     }
   },
 
-  toggleFavorite: async (tabId) => {
-    const tab = get().tabs.find(
-      (item) => item.id === tabId
-    );
+  toggleTabFavorite: async (tabId) => {
+    const tab = get().tabs.find((item) => item.id === tabId);
 
-    if (!tab?.url) {
+    if (!tab || !tab.url) {
       return;
     }
 
-    const favorite = !tab.favorite;
+    const favoriteUrls = await toggleFavoriteTab(tab.url);
 
-    set((state) => ({
-      tabs: state.tabs.map((item) =>
-        item.url === tab.url
-          ? { ...item, favorite }
-          : item
-      ),
-    }));
-
-    try {
-      await setTabFavorite(tab.url, favorite);
-    } catch (error) {
-      set((state) => ({
-        tabs: state.tabs.map((item) =>
-          item.url === tab.url
-            ? { ...item, favorite: !favorite }
-            : item
-        ),
-      }));
-
-      console.error(
-        "[toggleFavorite] failed to save tab favorite",
-        tabId,
-        error
-      );
-    }
+    set({
+      favoriteUrls,
+      tabs: annotate(get().tabs, favoriteUrls),
+    });
   },
 
   toggleSelectionMode: () =>
@@ -326,229 +248,6 @@ export const useTabStore = create<TabStore>((set, get) => ({
 
     set({ selectedTabs: [], selectionMode: false });
 
-    await syncAfterMutation(get, set);
-  },
-
-  groupSelectedTabs: async (groupId) => {
-    const { selectedTabs } = get();
-
-    if (selectedTabs.length === 0) {
-      return;
-    }
-
-    if (groupId === undefined) {
-      await createTabGroup(selectedTabs);
-    } else {
-      await addTabsToGroup(selectedTabs, groupId);
-    }
-
-    set({ selectedTabs: [], selectionMode: false });
-
-    await syncAfterMutation(get, set);
-  },
-
-  ungroupSelectedTabs: async () => {
-    const { selectedTabs, tabs } = get();
-    const groupedIds = selectedTabs.filter(
-      (id) =>
-        tabs.find((tab) => tab.id === id)?.groupId !== -1
-    );
-
-    if (groupedIds.length === 0) {
-      return;
-    }
-
-    await ungroupTabs(groupedIds);
-
-    set({ selectedTabs: [], selectionMode: false });
-
-    await syncAfterMutation(get, set);
-  },
-
-  toggleGroupCollapsed: async (groupId) => {
-    const group = get().groups.find(
-      (item) => item.id === groupId
-    );
-
-    if (!group) {
-      return;
-    }
-
-    const collapsed = !group.collapsed;
-
-    set((state) => ({
-      groups: state.groups.map((item) =>
-        item.id === groupId
-          ? { ...item, collapsed }
-          : item
-      ),
-    }));
-
-    await updateTabGroup(groupId, { collapsed });
-  },
-
-  renameGroup: async (groupId, name) => {
-    const group = get().groups.find(
-      (item) => item.id === groupId
-    );
-
-    if (!group) {
-      return;
-    }
-
-    const { emoji } = splitGroupTitle(group.title);
-
-    await updateTabGroup(groupId, {
-      title: buildGroupTitle(name, emoji),
-    });
-
-    await syncAfterMutation(get, set);
-  },
-
-  updateGroupColor: async (groupId, color) => {
-    await updateTabGroup(groupId, { color });
-    await syncAfterMutation(get, set);
-  },
-
-  updateGroupEmoji: async (groupId, emoji) => {
-    const group = get().groups.find(
-      (item) => item.id === groupId
-    );
-
-    if (!group) {
-      return;
-    }
-
-    const { name } = splitGroupTitle(group.title);
-
-    await updateTabGroup(groupId, {
-      title: buildGroupTitle(name, emoji),
-    });
-
-    await syncAfterMutation(get, set);
-  },
-
-  ungroupGroup: async (groupId) => {
-    const tabIds = get()
-      .tabs
-      .filter((tab) => tab.groupId === groupId)
-      .map((tab) => tab.id);
-
-    await ungroupTabs(tabIds);
-    await syncAfterMutation(get, set);
-  },
-
-  moveGroup: async (groupId, direction) => {
-    const groups = [...get().groups].sort(
-      (a, b) => a.firstIndex - b.firstIndex
-    );
-    const index = groups.findIndex(
-      (group) => group.id === groupId
-    );
-    const target =
-      direction === "left"
-        ? groups[index - 1]
-        : groups[index + 1];
-
-    if (!target) {
-      return;
-    }
-
-    await moveTabGroup(
-      groupId,
-      direction === "left"
-        ? target.firstIndex
-        : target.lastIndex + 1
-    );
-
-    await syncAfterMutation(get, set);
-  },
-
-  shuffleGroupTabs: async (groupId) => {
-    const tabs = get()
-      .tabs
-      .filter((tab) => tab.groupId === groupId)
-      .sort((a, b) => a.index - b.index);
-
-    if (tabs.length < 2) {
-      return;
-    }
-
-    const shuffled = tabs.map((tab) => tab.id);
-
-    for (let index = shuffled.length - 1; index > 0; index--) {
-      const swapIndex = Math.floor(
-        Math.random() * (index + 1)
-      );
-
-      [shuffled[index], shuffled[swapIndex]] = [
-        shuffled[swapIndex],
-        shuffled[index],
-      ];
-    }
-
-    await reorderTabs(shuffled, tabs[0].index);
-    await syncAfterMutation(get, set);
-  },
-
-  moveTabBefore: async (tabId, targetTabId) => {
-    if (tabId === targetTabId) {
-      return;
-    }
-
-    const source = get().tabs.find((tab) => tab.id === tabId);
-    const target = get().tabs.find(
-      (tab) => tab.id === targetTabId
-    );
-
-    if (!source || !target) {
-      return;
-    }
-
-    if (source.groupId !== target.groupId) {
-      if (target.groupId === -1) {
-        await ungroupTabs([tabId]);
-      } else {
-        await addTabsToGroup([tabId], target.groupId);
-      }
-    }
-
-    await moveChromeTabBefore(tabId, targetTabId);
-    await syncAfterMutation(get, set);
-  },
-
-  moveTabToGroup: async (tabId, groupId) => {
-    const tab = get().tabs.find((item) => item.id === tabId);
-
-    if (!tab) {
-      return;
-    }
-
-    if (groupId === undefined) {
-      if (tab.groupId !== -1) {
-        await ungroupTabs([tabId]);
-      }
-    } else if (tab.groupId !== groupId) {
-      await addTabsToGroup([tabId], groupId);
-    }
-
-    await syncAfterMutation(get, set);
-  },
-
-  moveGroupBefore: async (groupId, targetGroupId) => {
-    if (groupId === targetGroupId) {
-      return;
-    }
-
-    const target = get().groups.find(
-      (group) => group.id === targetGroupId
-    );
-
-    if (!target) {
-      return;
-    }
-
-    await moveTabGroup(groupId, target.firstIndex);
     await syncAfterMutation(get, set);
   },
 }));

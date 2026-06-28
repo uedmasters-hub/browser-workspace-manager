@@ -34,7 +34,7 @@ interface SearchActions {
 
   search: (query: string) => Promise<void>;
 
-  /** Empty-query discovery: favorite and recent tabs + workspaces. */
+  /** Empty-query discovery: favorites + recent tabs. */
   discover: () => Promise<void>;
 
   setActiveIndex: (index: number) => void;
@@ -48,6 +48,21 @@ type SearchStore = SearchState & SearchActions;
 
 function isDeep(query: string): boolean {
   return query.trim().startsWith("@deep");
+}
+
+/** Results are grouped by section, so the top-scored item isn't always first. */
+function bestIndex(results: SearchResult[]): number {
+  if (results.length === 0) {
+    return 0;
+  }
+
+  let best = 0;
+  for (let i = 1; i < results.length; i++) {
+    if (results[i].score > results[best].score) {
+      best = i;
+    }
+  }
+  return best;
 }
 
 export const useSearchStore = create<SearchStore>((set, get) => ({
@@ -99,7 +114,7 @@ export const useSearchStore = create<SearchStore>((set, get) => ({
       set((state) => ({
         query,
         results,
-        activeIndex: 0,
+        activeIndex: bestIndex(results),
         status: results.length ? "success" : "empty",
         deepMode: isDeep(query),
         recentSearches: [
@@ -121,7 +136,7 @@ export const useSearchStore = create<SearchStore>((set, get) => ({
 
       set({
         results,
-        activeIndex: 0,
+        activeIndex: bestIndex(results),
         status: results.length ? "success" : "empty",
       });
     } catch {

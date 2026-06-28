@@ -20,6 +20,7 @@ import { recencyBoost } from "../engine/Boosts";
 import { focusWindow } from "../../browser/services/windowService";
 
 const SOURCE_BASE = 100;
+const FAVORITE_BOOST = 12;
 const DISCOVERY_LIMIT = 6;
 
 export default class WorkspaceProvider
@@ -60,6 +61,7 @@ export default class WorkspaceProvider
 
       const score =
         match.score * SOURCE_BASE +
+        (workspace.favorite ? FAVORITE_BOOST : 0) +
         recencyBoost(workspace.updatedAt);
 
       results.push(
@@ -79,17 +81,20 @@ export default class WorkspaceProvider
     workspaces: SearchableWorkspace[]
   ): SearchResult[] {
     return [...workspaces]
-      .sort(
-        (a, b) =>
-          (b.updatedAt ?? 0) - (a.updatedAt ?? 0)
-      )
+      .sort((a, b) => {
+        if (a.favorite !== b.favorite) {
+          return a.favorite ? -1 : 1;
+        }
+
+        return (b.updatedAt ?? 0) - (a.updatedAt ?? 0);
+      })
       .slice(0, DISCOVERY_LIMIT)
       .map((workspace, index) =>
         this.toResult(
           workspace,
-          40 +
-          recencyBoost(workspace.updatedAt) -
-          index,
+          (workspace.favorite ? 60 : 40) +
+            recencyBoost(workspace.updatedAt) -
+            index,
           ["title"],
           []
         )

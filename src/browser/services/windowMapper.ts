@@ -31,6 +31,9 @@ export function mapChromeWindow(
 
     isActive: chromeWindow.focused ?? false,
 
+    isFavorite:
+      metadata?.favorite ?? false,
+
     isArchived:
       metadata?.archived ?? false,
 

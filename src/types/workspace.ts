@@ -7,6 +7,8 @@ export interface WorkspaceMetadata {
 
   emoji?: string;
 
+  favorite: boolean;
+
   archived: boolean;
 
   createdAt: string;

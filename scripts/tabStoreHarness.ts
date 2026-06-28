@@ -6,8 +6,6 @@
 interface MockTab {
   id: number;
   windowId: number;
-  index: number;
-  groupId: number;
   title: string;
   url: string;
   pinned?: boolean;
@@ -15,35 +13,14 @@ interface MockTab {
 }
 
 const TABS: MockTab[] = [
-  { id: 101, windowId: 1, index: 0, groupId: -1, title: "Tab A", url: "https://a.com", active: true },
-  { id: 102, windowId: 1, index: 1, groupId: -1, title: "Tab B", url: "https://b.com", pinned: true },
-  { id: 103, windowId: 1, index: 2, groupId: -1, title: "Tab C", url: "https://c.com" },
-  { id: 201, windowId: 2, index: 0, groupId: -1, title: "Other window tab", url: "https://x.com" },
+  { id: 101, windowId: 1, title: "Tab A", url: "https://a.com", active: true },
+  { id: 102, windowId: 1, title: "Tab B", url: "https://b.com", pinned: true },
+  { id: 103, windowId: 1, title: "Tab C", url: "https://c.com" },
+  { id: 201, windowId: 2, title: "Other window tab", url: "https://x.com" },
 ];
 
-interface MockGroup {
-  id: number;
-  windowId: number;
-  title?: string;
-  color: string;
-  collapsed: boolean;
-}
-
-const GROUPS: MockGroup[] = [];
-let nextGroupId = 10;
-
 const ACTIVATED: { tabId?: number; windowId?: number } = {};
-const STORAGE: Record<string, unknown> = {};
-
-function refreshIndexes() {
-  for (const windowId of new Set(TABS.map((tab) => tab.windowId))) {
-    TABS.filter((tab) => tab.windowId === windowId).forEach(
-      (tab, index) => {
-        tab.index = index;
-      }
-    );
-  }
-}
+const STORE: Record<string, unknown> = {};
 
 (globalThis as unknown as { chrome: unknown }).chrome = {
   tabs: {
@@ -60,105 +37,6 @@ function refreshIndexes() {
     update: async (tabId: number) => {
       ACTIVATED.tabId = tabId;
     },
-    get: async (tabId: number) =>
-      TABS.find((tab) => tab.id === tabId),
-    group: async ({
-      tabIds,
-      groupId,
-    }: {
-      tabIds: number | number[];
-      groupId?: number;
-    }) => {
-      const ids = Array.isArray(tabIds) ? tabIds : [tabIds];
-      const targetId = groupId ?? nextGroupId++;
-
-      if (groupId === undefined) {
-        const firstTab = TABS.find((tab) => ids.includes(tab.id));
-        GROUPS.push({
-          id: targetId,
-          windowId: firstTab?.windowId ?? 1,
-          title: "",
-          color: "grey",
-          collapsed: false,
-        });
-      }
-
-      for (const tab of TABS) {
-        if (ids.includes(tab.id)) {
-          tab.groupId = targetId;
-        }
-      }
-
-      return targetId;
-    },
-    ungroup: async (tabIds: number | number[]) => {
-      const ids = Array.isArray(tabIds) ? tabIds : [tabIds];
-
-      for (const tab of TABS) {
-        if (ids.includes(tab.id)) {
-          tab.groupId = -1;
-        }
-      }
-
-      for (let index = GROUPS.length - 1; index >= 0; index--) {
-        if (!TABS.some((tab) => tab.groupId === GROUPS[index].id)) {
-          GROUPS.splice(index, 1);
-        }
-      }
-    },
-    move: async (
-      tabIds: number | number[],
-      properties: { index?: number; windowId?: number }
-    ) => {
-      const ids = Array.isArray(tabIds) ? tabIds : [tabIds];
-      const moved = ids
-        .map((id) => TABS.find((tab) => tab.id === id))
-        .filter((tab): tab is MockTab => Boolean(tab));
-
-      for (const tab of moved) {
-        TABS.splice(TABS.indexOf(tab), 1);
-
-        if (properties.windowId !== undefined) {
-          tab.windowId = properties.windowId;
-        }
-      }
-
-      refreshIndexes();
-
-      const windowId = moved[0]?.windowId;
-      const windowTabs = TABS.filter(
-        (tab) => tab.windowId === windowId
-      );
-      const target =
-        properties.index === -1
-          ? undefined
-          : windowTabs[properties.index ?? 0];
-      const insertionIndex = target
-        ? TABS.indexOf(target)
-        : TABS.length;
-
-      TABS.splice(insertionIndex, 0, ...moved);
-      refreshIndexes();
-
-      return Array.isArray(tabIds) ? moved : moved[0];
-    },
-  },
-  tabGroups: {
-    query: async ({ windowId }: { windowId?: number }) =>
-      GROUPS.filter(
-        (group) =>
-          windowId === undefined || group.windowId === windowId
-      ),
-    update: async (
-      groupId: number,
-      updates: Partial<MockGroup>
-    ) => {
-      const group = GROUPS.find((item) => item.id === groupId);
-      Object.assign(group ?? {}, updates);
-      return group;
-    },
-    move: async (groupId: number) =>
-      GROUPS.find((group) => group.id === groupId),
   },
   windows: {
     getAll: async () => [],
@@ -168,22 +46,19 @@ function refreshIndexes() {
   },
   storage: {
     local: {
-      get: async (key: string) => ({
-        [key]: STORAGE[key],
-      }),
-      set: async (updates: Record<string, unknown>) => {
-        Object.assign(STORAGE, updates);
+      get: async (key: string) =>
+        key in STORE ? { [key]: STORE[key] } : {},
+      set: async (obj: Record<string, unknown>) => {
+        Object.assign(STORE, obj);
       },
       remove: async (key: string) => {
-        delete STORAGE[key];
+        delete STORE[key];
       },
     },
   },
 };
 
-const { useTabStore } = await import(
-  "../src/stores/tabStore"
-);
+import { useTabStore } from "../browser-workspace-manager/src/stores/tabStore";
 
 let passed = 0;
 let failed = 0;
@@ -219,78 +94,6 @@ async function run() {
     !s.tabs.some((t) => t.id === 201)
   );
 
-  // Favorite flow is URL-backed, so it survives a popup/store reload.
-  await useTabStore.getState().toggleFavorite(102);
-  s = useTabStore.getState();
-  check(
-    "toggleFavorite marks the tab",
-    s.tabs.find((tab) => tab.id === 102)?.favorite === true
-  );
-  check(
-    "favorite URL is persisted",
-    Array.isArray(STORAGE.favoriteTabs) &&
-      STORAGE.favoriteTabs.includes("https://b.com")
-  );
-
-  await useTabStore.getState().loadTabs(1);
-  s = useTabStore.getState();
-  check(
-    "favorite survives reloading tabs",
-    s.tabs.find((tab) => tab.id === 102)?.favorite === true
-  );
-
-  // Native Chrome tab group flow.
-  useTabStore.getState().toggleSelectionMode();
-  useTabStore.getState().toggleTabSelection(101);
-  useTabStore.getState().toggleTabSelection(102);
-  await useTabStore.getState().groupSelectedTabs();
-  s = useTabStore.getState();
-  const groupId = s.groups[0]?.id;
-  check("groupSelectedTabs creates a group", s.groups.length === 1);
-  check(
-    "selected tabs are assigned to the group",
-    s.tabs
-      .filter((tab) => [101, 102].includes(tab.id))
-      .every((tab) => tab.groupId === groupId)
-  );
-
-  await useTabStore.getState().toggleGroupCollapsed(groupId!);
-  check(
-    "collapse is reflected in Chrome group state",
-    GROUPS[0]?.collapsed === true
-  );
-
-  await useTabStore.getState().renameGroup(groupId!, "Research");
-  await useTabStore.getState().updateGroupEmoji(groupId!, "🧠");
-  await useTabStore.getState().updateGroupColor(groupId!, "blue");
-  check(
-    "rename and emoji update the native title",
-    GROUPS[0]?.title === "🧠 Research"
-  );
-  check(
-    "color updates the native group",
-    GROUPS[0]?.color === "blue"
-  );
-
-  await useTabStore.getState().moveTabBefore(102, 101);
-  check(
-    "drag reorder moves a tab before its target",
-    TABS.find((tab) => tab.id === 102)!.index <
-      TABS.find((tab) => tab.id === 101)!.index
-  );
-
-  await useTabStore.getState().shuffleGroupTabs(groupId!);
-  check(
-    "shuffle keeps every tab in its native group",
-    TABS.filter((tab) => [101, 102].includes(tab.id)).every(
-      (tab) => tab.groupId === groupId
-    )
-  );
-
-  await useTabStore.getState().ungroupGroup(groupId!);
-  s = useTabStore.getState();
-  check("ungroup removes the empty group", s.groups.length === 0);
-
   // Selection + close flow.
   useTabStore.getState().toggleSelectionMode();
   useTabStore.getState().toggleTabSelection(103);
@@ -318,6 +121,30 @@ async function run() {
     "activateTab focuses the tab's window",
     ACTIVATED.windowId === 1,
     `got ${ACTIVATED.windowId}`
+  );
+
+  // Favorite a tab -> persisted by URL + annotated on the tab.
+  await useTabStore.getState().toggleTabFavorite(102);
+  s = useTabStore.getState();
+  check(
+    "toggleTabFavorite marks the tab favorite",
+    s.tabs.find((t) => t.id === 102)?.favorite === true
+  );
+  check(
+    "favorite persisted by URL",
+    (STORE["favoriteTabs"] as string[] | undefined)?.includes(
+      "https://b.com"
+    ) === true,
+    JSON.stringify(STORE["favoriteTabs"])
+  );
+
+  // Toggling again removes it.
+  await useTabStore.getState().toggleTabFavorite(102);
+  s = useTabStore.getState();
+  check(
+    "toggling again unfavorites",
+    s.tabs.find((t) => t.id === 102)?.favorite === false &&
+      (STORE["favoriteTabs"] as string[]).length === 0
   );
 
   console.log(`\nRESULT: ${passed} passed, ${failed} failed`);

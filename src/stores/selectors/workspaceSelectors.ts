@@ -15,3 +15,11 @@ export function getArchivedWorkspaces(
     (window) => window.isArchived
   );
 }
+
+export function getFavoriteWorkspaces(
+  windows: WorkspaceWindow[]
+) {
+  return windows.filter(
+    (window) => window.isFavorite
+  );
+}

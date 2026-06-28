@@ -6,7 +6,6 @@ import SearchPanel from "../components/popup/search/SearchPanel";
 
 import {
   MoveTabsDialog,
-  GroupTabsDialog,
   ColorPickerDialog,
   EmojiPickerDialog,
 } from "../components/popup/dialogs";
@@ -28,23 +27,21 @@ export default function App() {
 
     // Keep the window list live while the popup is open.
     if (typeof chrome !== "undefined" && chrome.windows) {
-      return registerWindowEvents();
+      registerWindowEvents();
     }
   }, []);
 
   return (
     <>
-      <main className="flex h-[600px] w-[420px] flex-col overflow-hidden bg-[#F6F7FB]">
+      <main className="flex h-[640px] w-[420px] flex-col overflow-hidden bg-[#F6F7FB]">
         <Header />
 
-        <section className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <section className="flex-1 overflow-y-auto">
           {showSearch ? <SearchPanel /> : <WindowSection />}
         </section>
       </main>
 
       <MoveTabsDialog />
-
-      <GroupTabsDialog />
 
       <ColorPickerDialog />
 

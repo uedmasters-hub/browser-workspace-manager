@@ -46,6 +46,10 @@ interface WindowActions {
     name: string
   ) => Promise<void>;
 
+  toggleFavorite: (
+    chromeWindowId: number
+  ) => Promise<void>;
+
   updateWorkspaceColor: (
     chromeWindowId: number,
     color: string
@@ -119,6 +123,11 @@ export const useWindowStore =
           updates.emoji ??
           existing?.emoji,
 
+        favorite:
+          updates.favorite ??
+          existing?.favorite ??
+          false,
+
         archived:
           updates.archived ??
           existing?.archived ??
@@ -169,6 +178,15 @@ export const useWindowStore =
             }
           );
 
+          windows.sort((a, b) =>
+            a.isFavorite ===
+              b.isFavorite
+              ? 0
+              : a.isFavorite
+                ? -1
+                : 1
+          );
+
           set({ windows });
         },
 
@@ -217,6 +235,33 @@ export const useWindowStore =
               now,
               {
                 name,
+              }
+            )
+          );
+        },
+
+      toggleFavorite:
+        async (
+          chromeWindowId
+        ) => {
+          const {
+            existing,
+            now,
+          } =
+            await getWorkspaceData(
+              chromeWindowId
+            );
+
+          await saveWorkspace(
+            buildWorkspace(
+              chromeWindowId,
+              existing,
+              now,
+              {
+                favorite: !(
+                  existing?.favorite ??
+                  false
+                ),
               }
             )
           );
